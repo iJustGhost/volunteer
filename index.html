@@ -1,0 +1,794 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Volunteer Hours Tracker (local)</title>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+    <style>
+      :root {
+        --paper: #f7f8f5;
+        --card: #ffffff;
+        --ink: #14231f;
+        --muted: #5d6b66;
+        --line: #d9dfda;
+        --accent: #0f5c4d;
+        --accent-ink: #ffffff;
+        --pending: #9a6b00;
+        --pending-bg: #fff3d1;
+        --ok: #0f5c4d;
+        --ok-bg: #d8efe6;
+        --bad: #a3322c;
+        --bad-bg: #f9dedb;
+        --off: #5d6b66;
+        --off-bg: #e8ece9;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --paper: #101816;
+          --card: #17211e;
+          --ink: #e6efeb;
+          --muted: #94a59e;
+          --line: #2a3833;
+          --accent: #4cc2a6;
+          --accent-ink: #08201a;
+          --pending: #f0c25a;
+          --pending-bg: #3a2f10;
+          --ok: #6fd9bc;
+          --ok-bg: #123a30;
+          --bad: #f08f87;
+          --bad-bg: #40201d;
+          --off: #94a59e;
+          --off-bg: #222d29;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font:
+          15px/1.5 "Avenir Next",
+          "Segoe UI",
+          system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 24px 16px 64px;
+      }
+      h1 {
+        font:
+          700 28px/1.2 Georgia,
+          "Times New Roman",
+          serif;
+        margin: 0;
+      }
+      h2 {
+        font:
+          600 17px/1.3 Georgia,
+          serif;
+        margin: 0 0 12px;
+      }
+      header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-bottom: 20px;
+      }
+      header p {
+        margin: 4px 0 0;
+        color: var(--muted);
+      }
+      .panel {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      .row > input {
+        flex: 1 1 260px;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        color: var(--muted);
+        margin: 0 0 4px;
+      }
+      input,
+      select,
+      textarea {
+        width: 100%;
+        padding: 9px 10px;
+        font: inherit;
+        color: var(--ink);
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+      }
+      input:focus-visible,
+      select:focus-visible,
+      button:focus-visible,
+      .tab:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      button {
+        font: 600 14px inherit;
+        font-family: inherit;
+        padding: 9px 14px;
+        border-radius: 6px;
+        cursor: pointer;
+        border: 1px solid var(--accent);
+        background: var(--accent);
+        color: var(--accent-ink);
+      }
+      button.ghost {
+        background: transparent;
+        color: var(--accent);
+      }
+      button.small {
+        padding: 4px 10px;
+        font-size: 13px;
+      }
+      button.danger {
+        border-color: var(--bad);
+        background: transparent;
+        color: var(--bad);
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .stat {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 14px;
+      }
+      .stat b {
+        display: block;
+        font:
+          700 24px/1.2 Georgia,
+          serif;
+      }
+      .stat span {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .tabs {
+        display: flex;
+        gap: 4px;
+        border-bottom: 1px solid var(--line);
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+      }
+      .tab {
+        background: none;
+        border: 0;
+        border-bottom: 3px solid transparent;
+        border-radius: 0;
+        color: var(--muted);
+        padding: 8px 12px;
+      }
+      .tab[aria-selected="true"] {
+        color: var(--ink);
+        border-bottom-color: var(--accent);
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      @media (max-width: 600px) {
+        .grid2 {
+          grid-template-columns: 1fr;
+        }
+      }
+      .scroll {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 680px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 8px 8px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      th {
+        font-size: 13px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 99px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .s0 {
+        background: var(--pending-bg);
+        color: var(--pending);
+      }
+      .s1 {
+        background: var(--ok-bg);
+        color: var(--ok);
+      }
+      .s2 {
+        background: var(--bad-bg);
+        color: var(--bad);
+      }
+      .s3 {
+        background: var(--off-bg);
+        color: var(--off);
+      }
+      .addr {
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 13px;
+      }
+      .note {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .empty {
+        color: var(--muted);
+        padding: 16px 0;
+        text-align: center;
+      }
+      .bar {
+        height: 8px;
+        border-radius: 4px;
+        background: var(--ok-bg);
+        margin-top: 4px;
+      }
+      .bar i {
+        display: block;
+        height: 100%;
+        border-radius: 4px;
+        background: var(--accent);
+      }
+      #toast {
+        position: fixed;
+        left: 50%;
+        bottom: 20px;
+        transform: translateX(-50%);
+        background: var(--ink);
+        color: var(--paper);
+        padding: 10px 16px;
+        border-radius: 8px;
+        max-width: 90vw;
+        display: none;
+        z-index: 10;
+      }
+      #toast.err {
+        background: var(--bad);
+        color: #fff;
+      }
+      .hide {
+        display: none !important;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        button {
+          transition: opacity 0.15s;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Volunteer Hours Tracker</h1>
+          <p>
+            Log hours, get them verified, and see who is putting in the time.
+            Local node test build.
+          </p>
+        </div>
+        <div class="row">
+          <select
+            id="acct"
+            class="hide"
+            aria-label="Account"
+            style="width: auto"
+          ></select
+          ><button id="connectBtn">Connect to local node</button>
+        </div>
+      </header>
+
+      <section class="panel" aria-label="Contract">
+        <label for="addr"
+          >Contract address (printed by the deploy script)</label
+        >
+        <div class="row">
+          <input
+            id="addr"
+            class="addr"
+            placeholder="0x…"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button id="loadBtn">Load contract</button>
+        </div>
+        <p class="note" id="status" style="margin: 8px 0 0">Not connected.</p>
+      </section>
+
+      <div id="app" class="hide">
+        <div class="stats">
+          <div class="stat">
+            <b id="stTotal">0</b><span>Approved hours (everyone)</span>
+          </div>
+          <div class="stat">
+            <b id="stMine">0</b><span>Your approved hours</span>
+          </div>
+          <div class="stat">
+            <b id="stCount">0</b><span>Entries logged</span>
+          </div>
+          <div class="stat">
+            <b id="stRole">Volunteer</b><span>Your role</span>
+          </div>
+        </div>
+
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" data-tab="log" aria-selected="true">
+            Log hours
+          </button>
+          <button
+            class="tab"
+            role="tab"
+            data-tab="entries"
+            aria-selected="false"
+          >
+            Entries
+          </button>
+          <button class="tab" role="tab" data-tab="board" aria-selected="false">
+            Leaderboard
+          </button>
+          <button class="tab" role="tab" data-tab="admin" aria-selected="false">
+            Admin
+          </button>
+        </div>
+
+        <section id="tab-log" class="panel">
+          <h2>Log volunteer hours</h2>
+          <div class="grid2">
+            <div style="grid-column: 1 / -1">
+              <label for="activity"
+                >What did you do? (max 140 characters)</label
+              >
+              <input
+                id="activity"
+                maxlength="140"
+                placeholder="Sorted donations at the food bank"
+              />
+            </div>
+            <div>
+              <label for="hours">Hours (decimals are fine, e.g. 1.5)</label>
+              <input
+                id="hours"
+                type="number"
+                min="0.02"
+                max="24"
+                step="0.25"
+                value="1"
+              />
+            </div>
+            <div>
+              <label for="date">Date of the work</label>
+              <input id="date" type="date" />
+            </div>
+          </div>
+          <p><button id="logBtn">Submit for review</button></p>
+          <p class="note">
+            Entries start as Pending. A verifier other than you has to approve
+            them before they count.
+          </p>
+        </section>
+
+        <section id="tab-entries" class="panel hide">
+          <div
+            class="row"
+            style="justify-content: space-between; margin-bottom: 12px"
+          >
+            <h2 style="margin: 0">Entries</h2>
+            <div class="row">
+              <div>
+                <label for="filter" class="hide">Filter</label>
+                <select id="filter">
+                  <option value="all">All entries</option>
+                  <option value="mine">My entries</option>
+                  <option value="pending">Pending review</option>
+                </select>
+              </div>
+              <button class="ghost small" id="refreshBtn">Refresh</button>
+            </div>
+          </div>
+          <div id="reviewNoteWrap" class="hide" style="margin-bottom: 12px">
+            <label for="reviewNote"
+              >Note to attach when you approve or reject (optional)</label
+            >
+            <input id="reviewNote" maxlength="140" />
+          </div>
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Volunteer</th>
+                  <th>Activity</th>
+                  <th>Hours</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+          <div id="noRows" class="empty hide">No entries here yet.</div>
+        </section>
+
+        <section id="tab-board" class="panel hide">
+          <h2>Leaderboard (approved hours)</h2>
+          <div id="board"></div>
+        </section>
+
+        <section id="tab-admin" class="panel hide">
+          <h2>Admin</h2>
+          <p class="note" id="adminNote"></p>
+          <div class="grid2">
+            <div>
+              <label for="verAddr">Verifier address</label>
+              <input id="verAddr" class="addr" placeholder="0x…" />
+              <p class="row">
+                <button id="addVer" class="small">Add verifier</button>
+                <button id="remVer" class="small danger">
+                  Remove verifier
+                </button>
+              </p>
+            </div>
+            <div>
+              <label for="newOwner">Transfer ownership to</label>
+              <input id="newOwner" class="addr" placeholder="0x…" />
+              <p>
+                <button id="xferBtn" class="small danger">
+                  Transfer ownership
+                </button>
+              </p>
+            </div>
+          </div>
+          <p class="note">
+            Contract owner: <span class="addr" id="ownerAddr">–</span>
+          </p>
+        </section>
+      </div>
+    </main>
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+      const ABI = [
+        "function owner() view returns (address)",
+        "function isVerifier(address) view returns (bool)",
+        "function approvedMinutes(address) view returns (uint256)",
+        "function totalApprovedMinutes() view returns (uint256)",
+        "function entryCount() view returns (uint256)",
+        "function getEntries(uint256 start, uint256 count) view returns (tuple(uint256 id, address volunteer, string activity, uint32 minutesWorked, uint64 activityDate, uint64 submittedAt, uint8 status, address reviewer, string note)[])",
+        "function getVolunteers() view returns (address[])",
+        "function logHours(string activity, uint32 minutesWorked, uint64 activityDate) returns (uint256)",
+        "function cancel(uint256 id)",
+        "function review(uint256 id, bool approve, string note)",
+        "function setVerifier(address who, bool allowed)",
+        "function transferOwnership(address newOwner)",
+      ];
+      const STATUS = ["Pending", "Approved", "Rejected", "Cancelled"];
+      const $ = (id) => document.getElementById(id);
+
+      let provider,
+        signer,
+        contract,
+        me = "",
+        amOwner = false,
+        amVerifier = false,
+        entries = [];
+
+      const esc = (s) =>
+        String(s).replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      const short = (a) => a.slice(0, 6) + "…" + a.slice(-4);
+      const hrs = (m) => parseFloat((Number(m) / 60).toFixed(2)) + " h";
+      const day = (ts) => new Date(Number(ts) * 1000).toLocaleDateString();
+
+      let toastTimer;
+      function toast(msg, isErr) {
+        const t = $("toast");
+        t.textContent = msg;
+        t.className = isErr ? "err" : "";
+        t.style.display = "block";
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(
+          () => (t.style.display = "none"),
+          isErr ? 6000 : 2500,
+        );
+      }
+      function status(msg) {
+        $("status").textContent = msg;
+      }
+
+      async function send(fn) {
+        try {
+          toast("Sending transaction…");
+          const tx = await fn();
+          toast("Waiting for the block…");
+          await tx.wait();
+          toast("Done.");
+          await refresh();
+          return true;
+        } catch (e) {
+          toast(
+            e.reason || e.shortMessage || e.message || "Transaction failed",
+            true,
+          );
+          return false;
+        }
+      }
+
+      const RPC = "http://127.0.0.1:8545";
+
+      async function useAccount(a) {
+        signer = await provider.getSigner(a);
+        me = a;
+        if (contract) {
+          contract = new ethers.Contract(
+            await contract.getAddress(),
+            ABI,
+            signer,
+          );
+          await refresh();
+        }
+      }
+
+      async function connect() {
+        try {
+          provider = new ethers.JsonRpcProvider(RPC);
+          const accts = await provider.send("eth_accounts", []);
+          if (!accts.length) throw new Error("The node returned no accounts.");
+          $("acct").innerHTML = accts
+            .map(
+              (a, i) =>
+                `<option value="${a}">Account ${i}: ${short(a)}</option>`,
+            )
+            .join("");
+          $("acct").classList.remove("hide");
+          $("connectBtn").textContent = "Reconnect";
+          await useAccount(accts[0]);
+          status(
+            "Connected to " + RPC + ". Paste the contract address and load it.",
+          );
+          try {
+            const saved = localStorage.getItem("vht-addr");
+            if (saved && !$("addr").value) $("addr").value = saved;
+          } catch (_) {}
+        } catch (e) {
+          toast(
+            "Can't reach " + RPC + ". Is `npx hardhat node` running?",
+            true,
+          );
+        }
+      }
+
+      async function loadContract() {
+        if (!signer) await connect();
+        if (!signer) return;
+        const a = $("addr").value.trim();
+        if (!ethers.isAddress(a))
+          return toast("That is not a valid address.", true);
+        const code = await provider.getCode(a);
+        if (code === "0x")
+          return toast(
+            "No contract at that address on this network. Redeploy after restarting the node, because the chain resets.",
+            true,
+          );
+        contract = new ethers.Contract(a, ABI, signer);
+        try {
+          localStorage.setItem("vht-addr", a);
+        } catch (_) {}
+        $("app").classList.remove("hide");
+        status("Loaded contract " + a);
+        await refresh();
+      }
+
+      async function refresh() {
+        if (!contract) return;
+        try {
+          const [owner, ver, mine, total, count] = await Promise.all([
+            contract.owner(),
+            contract.isVerifier(me),
+            contract.approvedMinutes(me),
+            contract.totalApprovedMinutes(),
+            contract.entryCount(),
+          ]);
+          amOwner = owner.toLowerCase() === me.toLowerCase();
+          amVerifier = ver;
+          $("stTotal").textContent = parseFloat(
+            (Number(total) / 60).toFixed(2),
+          );
+          $("stMine").textContent = parseFloat((Number(mine) / 60).toFixed(2));
+          $("stCount").textContent = count.toString();
+          $("stRole").textContent = amOwner
+            ? "Owner"
+            : amVerifier
+              ? "Verifier"
+              : "Volunteer";
+          $("ownerAddr").textContent = owner;
+          $("adminNote").textContent = amOwner
+            ? "You are the owner."
+            : "Only the owner can change these settings.";
+          ["addVer", "remVer", "xferBtn"].forEach(
+            (id) => ($(id).disabled = !amOwner),
+          );
+          $("reviewNoteWrap").classList.toggle("hide", !amVerifier);
+
+          entries =
+            count > 0n ? [...(await contract.getEntries(0, count))] : [];
+          renderEntries();
+          await renderBoard();
+        } catch (e) {
+          toast(e.reason || e.shortMessage || e.message, true);
+        }
+      }
+
+      function renderEntries() {
+        const f = $("filter").value;
+        const list = entries
+          .filter((e) =>
+            f === "mine"
+              ? e.volunteer.toLowerCase() === me.toLowerCase()
+              : f === "pending"
+                ? Number(e.status) === 0
+                : true,
+          )
+          .reverse();
+        $("noRows").classList.toggle("hide", list.length > 0);
+        $("rows").innerHTML = list
+          .map((e) => {
+            const st = Number(e.status),
+              mineRow = e.volunteer.toLowerCase() === me.toLowerCase();
+            let actions = "";
+            if (st === 0 && mineRow)
+              actions += `<button class="small danger" data-act="cancel" data-id="${e.id}">Cancel</button> `;
+            if (st === 0 && amVerifier && !mineRow) {
+              actions += `<button class="small" data-act="approve" data-id="${e.id}">Approve</button> `;
+              actions += `<button class="small danger" data-act="reject" data-id="${e.id}">Reject</button>`;
+            }
+            const note = e.note
+              ? `<div class="note">Note: ${esc(e.note)} (${short(e.reviewer)})</div>`
+              : "";
+            return `<tr>
+      <td>${e.id}</td>
+      <td><span class="addr">${short(e.volunteer)}</span>${mineRow ? " (you)" : ""}</td>
+      <td>${esc(e.activity)}${note}</td>
+      <td>${hrs(e.minutesWorked)}</td>
+      <td>${day(e.activityDate)}</td>
+      <td><span class="badge s${st}">${STATUS[st]}</span></td>
+      <td>${actions}</td></tr>`;
+          })
+          .join("");
+      }
+
+      async function renderBoard() {
+        const vols = await contract.getVolunteers();
+        const totals = await Promise.all(
+          vols.map((v) => contract.approvedMinutes(v)),
+        );
+        const rows = vols
+          .map((v, i) => ({ v, m: Number(totals[i]) }))
+          .sort((a, b) => b.m - a.m);
+        const max = Math.max(1, ...rows.map((r) => r.m));
+        $("board").innerHTML = rows.length
+          ? rows
+              .map(
+                (r) =>
+                  `<div style="margin-bottom:12px"><div class="row" style="justify-content:space-between">
+      <span class="addr">${short(r.v)}${r.v.toLowerCase() === me.toLowerCase() ? " (you)" : ""}</span><b>${hrs(r.m)}</b></div>
+      <div class="bar"><i style="width:${(r.m / max) * 100}%"></i></div></div>`,
+              )
+              .join("")
+          : '<div class="empty">Nobody has logged hours yet.</div>';
+      }
+
+      // ---- events
+      $("connectBtn").onclick = connect;
+      $("acct").onchange = () => useAccount($("acct").value);
+      $("loadBtn").onclick = loadContract;
+      $("refreshBtn").onclick = refresh;
+      $("filter").onchange = renderEntries;
+
+      document.querySelectorAll(".tab").forEach(
+        (t) =>
+          (t.onclick = () => {
+            document
+              .querySelectorAll(".tab")
+              .forEach((x) => x.setAttribute("aria-selected", x === t));
+            ["log", "entries", "board", "admin"].forEach((n) =>
+              $("tab-" + n).classList.toggle("hide", n !== t.dataset.tab),
+            );
+          }),
+      );
+
+      $("date").value = new Date().toISOString().slice(0, 10);
+
+      $("logBtn").onclick = async () => {
+        const activity = $("activity").value.trim();
+        const mins = Math.round(parseFloat($("hours").value) * 60);
+        if (!activity) return toast("Describe what you did.", true);
+        if (!(mins > 0 && mins <= 1440))
+          return toast("Hours must be between 0.02 and 24.", true);
+        const d = $("date").value
+          ? Math.floor(new Date($("date").value + "T12:00:00").getTime() / 1000)
+          : 0;
+        if (await send(() => contract.logHours(activity, mins, d)))
+          $("activity").value = "";
+      };
+
+      $("rows").onclick = (ev) => {
+        const b = ev.target.closest("button[data-act]");
+        if (!b) return;
+        const id = BigInt(b.dataset.id),
+          note = $("reviewNote").value.trim();
+        if (b.dataset.act === "cancel") send(() => contract.cancel(id));
+        if (b.dataset.act === "approve")
+          send(() => contract.review(id, true, note));
+        if (b.dataset.act === "reject")
+          send(() => contract.review(id, false, note));
+      };
+
+      const needAddr = (v) =>
+        ethers.isAddress(v)
+          ? true
+          : (toast("Enter a valid address.", true), false);
+      $("addVer").onclick = () =>
+        needAddr($("verAddr").value.trim()) &&
+        send(() => contract.setVerifier($("verAddr").value.trim(), true));
+      $("remVer").onclick = () =>
+        needAddr($("verAddr").value.trim()) &&
+        send(() => contract.setVerifier($("verAddr").value.trim(), false));
+      $("xferBtn").onclick = () => {
+        const a = $("newOwner").value.trim();
+        if (needAddr(a) && confirm("Transfer ownership to " + a + "?"))
+          send(() => contract.transferOwnership(a));
+      };
+    </script>
+  </body>
+</html>
